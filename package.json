@@ -1,0 +1,31 @@
+{
+  "name": "be",
+  "version": "1.0.0",
+  "description": "Retrieve and parse solana txns.",
+  "main": "index.js",
+  "scripts": {
+    "start:dev": "nodemon",
+    "start": "npm run build && node build/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "rimraf ./build && tsc"
+  },
+  "author": "Sean Bermingham",
+  "license": "ISC",
+  "dependencies": {
+    "@project-serum/anchor": "^0.25.0",
+    "@solana/web3.js": "^1.61.1",
+    "@sonarwatch/solana-transaction-parser": "^1.0.2",
+    "@types/bn.js": "^5.1.1",
+    "axios": "^0.21.1",
+    "bn.js": "^5.2.1",
+    "fs": "^0.0.1-security"
+  },
+  "devDependencies": {
+    "@types/node": "^13.13.5",
+    "@types/selenium-webdriver": "^4.0.18",
+    "nodemon": "^2.0.3",
+    "rimraf": "^3.0.2",
+    "ts-node": "^8.10.1",
+    "typescript": "^4.2.4"
+  }
+}
