@@ -69,8 +69,18 @@ async function parseTransactions() {
       }
 
       if (logMessages.toString().includes('Program log: Instruction: ConsumeEvents')) {
-        outOrderId = parseConsumeEventsOutEmit()
-        orders = orders.filter(obj => obj !== outOrderId.toString());
+
+        // In this else statement, we have already checked that this signature doesn't contain an error, which
+        // means the transaction completed successfully.
+        // Every time we see a "ConsumeEvents" ix in the transaction details, we need to look for the 'pFdmPWk1kyA...' Program Log output
+        // Example is seen here: https://explorer.solana.com/tx/PBKTEtkAYjB1PpN4Djj8caYL5U5oqViYNr8kVsTxCDEUgvfsGiSRc3XWmyLHVqrMgqYP2gF6dELBUfGMSq3eq1e
+        // These are transaction event emits put out by the program. The struct is defined here: https://github.com/AverBet/aver-core/blob/main/programs/aver-core/src/utils.rs#L126
+        // We need to parse the 'pFdmPWk1kyA...' strings similarly to how we do it in aver-py. Once that's done, I'll be able to know if there were any "Out" transaction types 
+        // during each consume event and subsequetly remove that from the users "shadow orders" I've been keeping track of. See below.
+
+        // PSEUDOCODE BELOW
+        // outOrderId = parseConsumeEventsOut(logMessages.toString())
+        // orders = orders.filter(obj => obj !== outOrderId.toString());
       }
 
       const parsed = await txParser.parseTransaction(

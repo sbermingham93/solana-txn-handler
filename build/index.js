@@ -79,7 +79,7 @@ function getSignatures() {
 function parseTransactions() {
     var _a, _b, _c, _d;
     return __awaiter(this, void 0, void 0, function () {
-        var signatures, parsedTxns, transactionDetails, orders, cancelled_orders, err_signatures, passed_signatures, err_transaction_details, passed_transaction_details, _loop_1, orderIdMatch, index, i, i, parsed;
+        var signatures, parsedTxns, transactionDetails, orders, cancelled_orders, err_signatures, passed_signatures, err_transaction_details, passed_transaction_details, _loop_1, orderIdMatch, orderIdMatch, index, i, i, parsed;
         return __generator(this, function (_e) {
             switch (_e.label) {
                 case 0: return [4 /*yield*/, getSignatures()];
@@ -99,7 +99,7 @@ function parseTransactions() {
                     err_transaction_details = [];
                     passed_transaction_details = [];
                     _loop_1 = function (i) {
-                        var logMessages, expression, posted_order_id, parsed, o_id_1, x;
+                        var logMessages, expression, posted_order_id, expression, parsed, o_id_1, x;
                         return __generator(this, function (_f) {
                             switch (_f.label) {
                                 case 0:
@@ -118,6 +118,15 @@ function parseTransactions() {
                                             posted_order_id = orderIdMatch[1];
                                             orders.push(posted_order_id);
                                         }
+                                    }
+                                    if (logMessages.toString().includes('Program log: Instruction: ConsumeEvents')) {
+                                        console.log("yay");
+                                        expression = /pFdmPWk1kyA\((.*?)\)/;
+                                        orderIdMatch = expression.exec(logMessages.toString());
+                                        if (orderIdMatch != null && orderIdMatch.length > 0) {
+                                            console.log(orderIdMatch);
+                                        }
+                                        // orders = orders.filter(obj => obj !== outOrderId.toString());
                                     }
                                     return [4 /*yield*/, txParser.parseTransaction(rpcConnection, signatures[i], false)];
                                 case 2:
