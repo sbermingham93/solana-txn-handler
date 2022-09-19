@@ -42,12 +42,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var aver_1 = require("./idl/aver");
 var web3_js_1 = require("@solana/web3.js");
 var solana_transaction_parser_1 = require("@sonarwatch/solana-transaction-parser");
+var anchor_1 = require("@project-serum/anchor");
 var fs_1 = __importDefault(require("fs"));
 var MARKET_PUBKEY = '4wVPU2UjeowgSMnbRKcm7p5cFkq46NeTqTxG57wSz1TK';
 var SOLANA_URL = 'https://holy-cold-glade.solana-mainnet.quiknode.pro/';
 var PROGRAM_ID = '6q5ZGhEj6kkmEjuyCXuH4x8493bpi9fNzvy9L8hX83HQ';
 var rpcConnection = new web3_js_1.Connection(SOLANA_URL);
 var txParser = new solana_transaction_parser_1.SolanaParser([{ idl: aver_1.IDL, programId: PROGRAM_ID }]);
+var wallet = new anchor_1.Wallet(new web3_js_1.Keypair());
+var provider = new anchor_1.AnchorProvider(rpcConnection, wallet, {});
+var program = new anchor_1.Program(aver_1.IDL, PROGRAM_ID, provider);
+var eventParser = new anchor_1.EventParser(program.programId, program.coder);
 function writeToJsonFile(arraytoWrite, path) {
     return __awaiter(this, void 0, void 0, function () {
         var jsonContent;
@@ -76,10 +81,27 @@ function getSignatures() {
         });
     });
 }
+var TX_EVENT_DISCRIMINATOR = 'pFdmPWk1kyA';
+function parseConsumeLogMessages(logMessages) {
+    var parsedEventTxns = [];
+    var events = eventParser.parseLogs(logMessages);
+    var hasRemainingEvents = true;
+    while (hasRemainingEvents) {
+        var eventTxnResult = events.next();
+        if (eventTxnResult.value != null) {
+            parsedEventTxns.push(eventTxnResult.value);
+        }
+        if (eventTxnResult.done) {
+            hasRemainingEvents = false;
+        }
+    }
+    console.log('GOT THE EVENTS...', parsedEventTxns);
+    return parsedEventTxns;
+}
 function parseTransactions() {
     var _a, _b, _c, _d;
     return __awaiter(this, void 0, void 0, function () {
-        var signatures, parsedTxns, transactionDetails, orders, cancelled_orders, err_signatures, passed_signatures, err_transaction_details, passed_transaction_details, _loop_1, orderIdMatch, orderIdMatch, index, i, i, parsed;
+        var signatures, parsedTxns, transactionDetails, orders, cancelled_orders, err_signatures, passed_signatures, err_transaction_details, passed_transaction_details, _loop_1, orderIdMatch, index, i, i, parsed;
         return __generator(this, function (_e) {
             switch (_e.label) {
                 case 0: return [4 /*yield*/, getSignatures()];
@@ -99,7 +121,7 @@ function parseTransactions() {
                     err_transaction_details = [];
                     passed_transaction_details = [];
                     _loop_1 = function (i) {
-                        var logMessages, expression, posted_order_id, expression, parsed, o_id_1, x;
+                        var logMessages, expression, posted_order_id, eventTxns, parsed, o_id_1, x;
                         return __generator(this, function (_f) {
                             switch (_f.label) {
                                 case 0:
@@ -120,12 +142,19 @@ function parseTransactions() {
                                         }
                                     }
                                     if (logMessages.toString().includes('Program log: Instruction: ConsumeEvents')) {
-                                        console.log("yay");
-                                        expression = /pFdmPWk1kyA\((.*?)\)/;
-                                        orderIdMatch = expression.exec(logMessages.toString());
-                                        if (orderIdMatch != null && orderIdMatch.length > 0) {
-                                            console.log(orderIdMatch);
-                                        }
+                                        eventTxns = parseConsumeLogMessages(logMessages);
+                                        eventTxns.forEach(function (eventTxn) {
+                                            console.log(eventTxn);
+                                        });
+                                        // In this else statement, we have already checked that this signature doesn't contain an error, which
+                                        // means the transaction completed successfully.
+                                        // Every time we see a "ConsumeEvents" ix in the transaction details, we need to look for the 'pFdmPWk1kyA...' Program Log output
+                                        // Example is seen here: https://explorer.solana.com/tx/PBKTEtkAYjB1PpN4Djj8caYL5U5oqViYNr8kVsTxCDEUgvfsGiSRc3XWmyLHVqrMgqYP2gF6dELBUfGMSq3eq1e
+                                        // These are transaction event emits put out by the program. The struct is defined here: https://github.com/AverBet/aver-core/blob/main/programs/aver-core/src/utils.rs#L126
+                                        // We need to parse the 'pFdmPWk1kyA...' strings similarly to how we do it in aver-py. Once that's done, I'll be able to know if there were any "Out" transaction types 
+                                        // during each consume event and subsequetly remove that from the users "shadow orders" I've been keeping track of. See below.
+                                        // PSEUDOCODE BELOW
+                                        // outOrderId = parseConsumeEventsOut(logMessages.toString())
                                         // orders = orders.filter(obj => obj !== outOrderId.toString());
                                     }
                                     return [4 /*yield*/, txParser.parseTransaction(rpcConnection, signatures[i], false)];
