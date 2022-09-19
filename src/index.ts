@@ -1,15 +1,21 @@
 import { IDL as AverIdl, AverCore } from './idl/aver'
-import { PublicKey, Connection } from "@solana/web3.js";
+import { PublicKey, Connection, Keypair } from "@solana/web3.js";
 import { SolanaParser } from "@sonarwatch/solana-transaction-parser";
-import { Idl } from '@project-serum/anchor';
+import { AnchorProvider, EventParser, Idl, Program, Wallet } from '@project-serum/anchor';
 import fs, { PathLike } from 'fs'
-import BN from '@project-serum/anchor';
 
 const MARKET_PUBKEY = '4wVPU2UjeowgSMnbRKcm7p5cFkq46NeTqTxG57wSz1TK'
 const SOLANA_URL = 'https://holy-cold-glade.solana-mainnet.quiknode.pro/'
 const PROGRAM_ID = '6q5ZGhEj6kkmEjuyCXuH4x8493bpi9fNzvy9L8hX83HQ'
 const rpcConnection = new Connection(SOLANA_URL)
 const txParser = new SolanaParser([{ idl: AverIdl as unknown as Idl, programId: PROGRAM_ID }])
+const wallet = new Wallet(new Keypair())
+const provider = new AnchorProvider(rpcConnection, wallet, {})
+const program = new Program(AverIdl, PROGRAM_ID, provider)
+const eventParser = new EventParser(
+  program.programId,
+  program.coder
+)
 
 async function writeToJsonFile(arraytoWrite: any[], path: PathLike) {
   const jsonContent = JSON.stringify(arraytoWrite)
@@ -27,6 +33,24 @@ async function getSignatures() {
   const signatures = await rpcConnection.getSignaturesForAddress(new PublicKey(MARKET_PUBKEY))
 
   return signatures.map((sig) => sig.signature)
+}
+const TX_EVENT_DISCRIMINATOR = 'pFdmPWk1kyA'
+
+function parseConsumeLogMessages(logMessages: string[]) {
+  const parsedEventTxns = []
+  const events = eventParser.parseLogs(logMessages)
+  let eventTxnResult = events.next()
+
+  while (!eventTxnResult.done) {
+    if (eventTxnResult.value != null) {
+      parsedEventTxns.push(eventTxnResult.value)
+    } 
+
+    eventTxnResult = events.next()
+  }
+  
+  console.log('GOT THE EVENTS...', parsedEventTxns)
+  return parsedEventTxns
 }
 
 async function parseTransactions() {
@@ -58,7 +82,6 @@ async function parseTransactions() {
 
       const logMessages = transactionDetails[i]?.meta?.logMessages
       if (logMessages.toString().includes('Program log: Order summary')) {
-        // console.log('Includes, picking out order')
         const expression = /posted_order_id: Some\((.*?)\)/;
         var orderIdMatch = expression.exec(logMessages.toString());
         if (orderIdMatch != null && orderIdMatch.length > 0) {
@@ -69,7 +92,10 @@ async function parseTransactions() {
       }
 
       if (logMessages.toString().includes('Program log: Instruction: ConsumeEvents')) {
-
+        const eventTxns = parseConsumeLogMessages(logMessages)
+        eventTxns.forEach((eventTxn) => {
+          console.log(eventTxn)
+        })
         // In this else statement, we have already checked that this signature doesn't contain an error, which
         // means the transaction completed successfully.
         // Every time we see a "ConsumeEvents" ix in the transaction details, we need to look for the 'pFdmPWk1kyA...' Program Log output
