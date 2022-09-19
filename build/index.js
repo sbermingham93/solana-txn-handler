@@ -85,15 +85,12 @@ var TX_EVENT_DISCRIMINATOR = 'pFdmPWk1kyA';
 function parseConsumeLogMessages(logMessages) {
     var parsedEventTxns = [];
     var events = eventParser.parseLogs(logMessages);
-    var hasRemainingEvents = true;
-    while (hasRemainingEvents) {
-        var eventTxnResult = events.next();
+    var eventTxnResult = events.next();
+    while (!eventTxnResult.done) {
         if (eventTxnResult.value != null) {
             parsedEventTxns.push(eventTxnResult.value);
         }
-        if (eventTxnResult.done) {
-            hasRemainingEvents = false;
-        }
+        eventTxnResult = events.next();
     }
     console.log('GOT THE EVENTS...', parsedEventTxns);
     return parsedEventTxns;

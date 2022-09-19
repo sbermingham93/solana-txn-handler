@@ -39,17 +39,14 @@ const TX_EVENT_DISCRIMINATOR = 'pFdmPWk1kyA'
 function parseConsumeLogMessages(logMessages: string[]) {
   const parsedEventTxns = []
   const events = eventParser.parseLogs(logMessages)
-  let hasRemainingEvents = true
+  let eventTxnResult = events.next()
 
-  while (hasRemainingEvents) {
-    const eventTxnResult = events.next()
+  while (!eventTxnResult.done) {
     if (eventTxnResult.value != null) {
       parsedEventTxns.push(eventTxnResult.value)
     } 
 
-    if (eventTxnResult.done) {
-      hasRemainingEvents = false
-    }
+    eventTxnResult = events.next()
   }
   
   console.log('GOT THE EVENTS...', parsedEventTxns)
