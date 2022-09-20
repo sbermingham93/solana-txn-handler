@@ -43,7 +43,7 @@ var aver_1 = require("./idl/aver");
 var web3_js_1 = require("@solana/web3.js");
 var solana_transaction_parser_1 = require("@sonarwatch/solana-transaction-parser");
 var fs_1 = __importDefault(require("fs"));
-var MARKET_PUBKEY = '4wVPU2UjeowgSMnbRKcm7p5cFkq46NeTqTxG57wSz1TK';
+var MARKET_PUBKEY = '9yZ9HzAXgEtwTbSaEPJttqHqfxkaPs6TC2YHDFRTgJFt';
 var SOLANA_URL = 'https://holy-cold-glade.solana-mainnet.quiknode.pro/';
 var PROGRAM_ID = '6q5ZGhEj6kkmEjuyCXuH4x8493bpi9fNzvy9L8hX83HQ';
 var rpcConnection = new web3_js_1.Connection(SOLANA_URL);
@@ -65,32 +65,47 @@ function writeToJsonFile(arraytoWrite, path) {
 }
 function getSignatures() {
     return __awaiter(this, void 0, void 0, function () {
-        var signatures;
+        var signatures, _signatures, lastSignature;
         return __generator(this, function (_a) {
             switch (_a.label) {
-                case 0: return [4 /*yield*/, rpcConnection.getSignaturesForAddress(new web3_js_1.PublicKey(MARKET_PUBKEY))];
+                case 0:
+                    signatures = [];
+                    return [4 /*yield*/, rpcConnection.getSignaturesForAddress(new web3_js_1.PublicKey(MARKET_PUBKEY))];
                 case 1:
-                    signatures = _a.sent();
-                    return [2 /*return*/, signatures.map(function (sig) { return sig.signature; })];
+                    _signatures = _a.sent();
+                    signatures.push.apply(signatures, _signatures);
+                    _a.label = 2;
+                case 2:
+                    if (!true) return [3 /*break*/, 5];
+                    if (!(_signatures.length >= 1000 && signatures.length < 100000)) return [3 /*break*/, 4];
+                    lastSignature = _signatures[_signatures.length - 1];
+                    return [4 /*yield*/, rpcConnection.getSignaturesForAddress(new web3_js_1.PublicKey(MARKET_PUBKEY), {
+                            before: lastSignature.signature,
+                        })];
+                case 3:
+                    _signatures = _a.sent();
+                    signatures.push.apply(signatures, _signatures);
+                    return [3 /*break*/, 2];
+                case 4: return [3 /*break*/, 5];
+                case 5: return [2 /*return*/, signatures.reverse().map(function (sig) { return sig.signature; })];
             }
         });
     });
 }
 function parseTransactions() {
-    var _a, _b, _c, _d;
+    var _a, _b;
     return __awaiter(this, void 0, void 0, function () {
-        var signatures, parsedTxns, transactionDetails, orders, cancelled_orders, err_signatures, passed_signatures, err_transaction_details, passed_transaction_details, _loop_1, orderIdMatch, orderIdMatch, index, i, i, parsed;
-        return __generator(this, function (_e) {
-            switch (_e.label) {
+        var signatures, parsedTxns, transactionDetails, orders, cancelled_orders, err_signatures, passed_signatures, err_transaction_details, passed_transaction_details, i, parsed, i, parsed, i_1;
+        return __generator(this, function (_c) {
+            switch (_c.label) {
                 case 0: return [4 /*yield*/, getSignatures()];
                 case 1:
-                    signatures = _e.sent();
-                    signatures = signatures.reverse();
+                    signatures = _c.sent();
                     parsedTxns = [];
                     console.log('There are ', signatures.length, ' signatures');
                     return [4 /*yield*/, rpcConnection.getParsedTransactions(signatures)];
                 case 2:
-                    transactionDetails = _e.sent();
+                    transactionDetails = _c.sent();
                     console.log('There are ', transactionDetails.length, ' transaction details');
                     orders = [];
                     cancelled_orders = [];
@@ -98,89 +113,46 @@ function parseTransactions() {
                     passed_signatures = [];
                     err_transaction_details = [];
                     passed_transaction_details = [];
-                    _loop_1 = function (i) {
-                        var logMessages, expression, posted_order_id, expression, parsed, o_id_1, x;
-                        return __generator(this, function (_f) {
-                            switch (_f.label) {
-                                case 0:
-                                    if (!(((_b = (_a = transactionDetails[i]) === null || _a === void 0 ? void 0 : _a.meta) === null || _b === void 0 ? void 0 : _b.err) != null)) return [3 /*break*/, 1];
-                                    err_signatures.push(signatures[i]);
-                                    err_transaction_details.push(transactionDetails[i]);
-                                    return [3 /*break*/, 3];
-                                case 1:
-                                    passed_signatures.push(signatures[i]);
-                                    passed_transaction_details.push(transactionDetails[i]);
-                                    logMessages = (_d = (_c = transactionDetails[i]) === null || _c === void 0 ? void 0 : _c.meta) === null || _d === void 0 ? void 0 : _d.logMessages;
-                                    if (logMessages.toString().includes('Program log: Order summary')) {
-                                        expression = /posted_order_id: Some\((.*?)\)/;
-                                        orderIdMatch = expression.exec(logMessages.toString());
-                                        if (orderIdMatch != null && orderIdMatch.length > 0) {
-                                            posted_order_id = orderIdMatch[1];
-                                            orders.push(posted_order_id);
-                                        }
-                                    }
-                                    if (logMessages.toString().includes('Program log: Instruction: ConsumeEvents')) {
-                                        console.log("yay");
-                                        expression = /pFdmPWk1kyA\((.*?)\)/;
-                                        orderIdMatch = expression.exec(logMessages.toString());
-                                        if (orderIdMatch != null && orderIdMatch.length > 0) {
-                                            console.log(orderIdMatch);
-                                        }
-                                        // orders = orders.filter(obj => obj !== outOrderId.toString());
-                                    }
-                                    return [4 /*yield*/, txParser.parseTransaction(rpcConnection, signatures[i], false)];
-                                case 2:
-                                    parsed = _f.sent();
-                                    if (parsed) {
-                                        if (parsed[0].name == "cancelOrder") {
-                                            o_id_1 = parsed[0].args["orderId"].toString();
-                                            index = orders.indexOf(o_id_1);
-                                            x = {
-                                                'pubkey': parsed[0].accounts[1].pubkey.toString(),
-                                                'outcomeId': parsed[0].args["outcomeId"],
-                                                'orderId': o_id_1,
-                                                'index': index,
-                                            };
-                                            cancelled_orders.push(x);
-                                            orders = orders.filter(function (obj) { return obj !== o_id_1.toString(); });
-                                        }
-                                    }
-                                    _f.label = 3;
-                                case 3: return [2 /*return*/];
-                            }
-                        });
-                    };
                     i = 0;
-                    _e.label = 3;
+                    _c.label = 3;
                 case 3:
-                    if (!(i < signatures.length)) return [3 /*break*/, 6];
-                    return [5 /*yield**/, _loop_1(i)];
+                    if (!(i < signatures.length)) return [3 /*break*/, 7];
+                    if (!(((_b = (_a = transactionDetails[i]) === null || _a === void 0 ? void 0 : _a.meta) === null || _b === void 0 ? void 0 : _b.err) != null)) return [3 /*break*/, 4];
+                    err_signatures.push(signatures[i]);
+                    err_transaction_details.push(transactionDetails[i]);
+                    return [3 /*break*/, 6];
                 case 4:
-                    _e.sent();
-                    _e.label = 5;
+                    passed_signatures.push(signatures[i]);
+                    passed_transaction_details.push(transactionDetails[i]);
+                    return [4 /*yield*/, txParser.parseTransaction(rpcConnection, signatures[i], false)];
                 case 5:
+                    parsed = _c.sent();
+                    _c.label = 6;
+                case 6:
                     i++;
                     return [3 /*break*/, 3];
-                case 6:
+                case 7:
                     console.log('There are ', err_signatures.length, ' errored signatures');
                     console.log('There are ', passed_signatures.length, ' passed signatures');
                     console.log('There are ', err_transaction_details.length, ' error transaction details');
                     console.log(cancelled_orders.length);
                     i = 0;
-                    _e.label = 7;
-                case 7:
-                    if (!(i < passed_signatures.length)) return [3 /*break*/, 10];
-                    return [4 /*yield*/, txParser.parseTransaction(rpcConnection, passed_signatures[i], false)];
+                    _c.label = 8;
                 case 8:
-                    parsed = _e.sent();
-                    if (parsed && parsed.length > 0) {
-                        parsedTxns.push(parsed[0]);
-                    }
-                    _e.label = 9;
+                    if (!(i < passed_signatures.length)) return [3 /*break*/, 11];
+                    return [4 /*yield*/, txParser.parseTransaction(rpcConnection, passed_signatures[i], false)];
                 case 9:
-                    i++;
-                    return [3 /*break*/, 7];
+                    parsed = _c.sent();
+                    if (parsed && parsed.length > 0) {
+                        for (i_1 = 0; i_1 < parsed.length; i_1++) {
+                            parsedTxns.push(parsed[i_1]);
+                        }
+                    }
+                    _c.label = 10;
                 case 10:
+                    i++;
+                    return [3 /*break*/, 8];
+                case 11:
                     if (parsedTxns.length > 0) {
                         writeToJsonFile(parsedTxns, "./parsed-txns.json");
                     }

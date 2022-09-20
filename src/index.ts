@@ -5,7 +5,7 @@ import { Idl } from '@project-serum/anchor';
 import fs, { PathLike } from 'fs'
 import BN from '@project-serum/anchor';
 
-const MARKET_PUBKEY = '4wVPU2UjeowgSMnbRKcm7p5cFkq46NeTqTxG57wSz1TK'
+const MARKET_PUBKEY = '9yZ9HzAXgEtwTbSaEPJttqHqfxkaPs6TC2YHDFRTgJFt'
 const SOLANA_URL = 'https://holy-cold-glade.solana-mainnet.quiknode.pro/'
 const PROGRAM_ID = '6q5ZGhEj6kkmEjuyCXuH4x8493bpi9fNzvy9L8hX83HQ'
 const rpcConnection = new Connection(SOLANA_URL)
@@ -24,14 +24,25 @@ async function writeToJsonFile(arraytoWrite: any[], path: PathLike) {
 }
 
 async function getSignatures() {
-  const signatures = await rpcConnection.getSignaturesForAddress(new PublicKey(MARKET_PUBKEY))
-
-  return signatures.map((sig) => sig.signature)
+  const signatures = [];
+  let _signatures = await rpcConnection.getSignaturesForAddress(new PublicKey(MARKET_PUBKEY));
+  signatures.push(..._signatures);
+  while (true) {
+    if (_signatures.length >= 1000 && signatures.length < 100000) {
+      const lastSignature = _signatures[_signatures.length - 1];
+      _signatures = await rpcConnection.getSignaturesForAddress(new PublicKey(MARKET_PUBKEY), {
+        before: lastSignature.signature,
+      });
+      signatures.push(..._signatures);
+      continue;
+    }
+    break;
+  }
+  return signatures.reverse().map((sig) => sig.signature)
 }
 
 async function parseTransactions() {
   var signatures = await getSignatures()
-  signatures = signatures.reverse()
   const parsedTxns: any[] = []
 
   console.log('There are ', signatures.length, ' signatures')
@@ -56,52 +67,11 @@ async function parseTransactions() {
       passed_signatures.push(signatures[i])
       passed_transaction_details.push(transactionDetails[i])
 
-      const logMessages = transactionDetails[i]?.meta?.logMessages
-      if (logMessages.toString().includes('Program log: Order summary')) {
-        // console.log('Includes, picking out order')
-        const expression = /posted_order_id: Some\((.*?)\)/;
-        var orderIdMatch = expression.exec(logMessages.toString());
-        if (orderIdMatch != null && orderIdMatch.length > 0) {
-          // console.log(orderIdMatch[1])
-          let posted_order_id = orderIdMatch[1]
-          orders.push(posted_order_id)
-        }
-      }
-
-      if (logMessages.toString().includes('Program log: Instruction: ConsumeEvents')) {
-
-        // In this else statement, we have already checked that this signature doesn't contain an error, which
-        // means the transaction completed successfully.
-        // Every time we see a "ConsumeEvents" ix in the transaction details, we need to look for the 'pFdmPWk1kyA...' Program Log output
-        // Example is seen here: https://explorer.solana.com/tx/PBKTEtkAYjB1PpN4Djj8caYL5U5oqViYNr8kVsTxCDEUgvfsGiSRc3XWmyLHVqrMgqYP2gF6dELBUfGMSq3eq1e
-        // These are transaction event emits put out by the program. The struct is defined here: https://github.com/AverBet/aver-core/blob/main/programs/aver-core/src/utils.rs#L126
-        // We need to parse the 'pFdmPWk1kyA...' strings similarly to how we do it in aver-py. Once that's done, I'll be able to know if there were any "Out" transaction types 
-        // during each consume event and subsequetly remove that from the users "shadow orders" I've been keeping track of. See below.
-
-        // PSEUDOCODE BELOW
-        // outOrderId = parseConsumeEventsOut(logMessages.toString())
-        // orders = orders.filter(obj => obj !== outOrderId.toString());
-      }
-
       const parsed = await txParser.parseTransaction(
         rpcConnection,
         signatures[i],
         false,
       )
-      if (parsed) {
-        if (parsed[0].name == "cancelOrder") {
-          let o_id = parsed[0].args["orderId"].toString()
-          var index = orders.indexOf(o_id)
-          let x = {
-            'pubkey': parsed[0].accounts[1].pubkey.toString(),
-            'outcomeId': parsed[0].args["outcomeId"],
-            'orderId': o_id,
-            'index': index,
-          }
-          cancelled_orders.push(x)
-          orders = orders.filter(obj => obj !== o_id.toString());
-        }
-      }
     }
   }
 
@@ -118,7 +88,9 @@ async function parseTransactions() {
     )
 
     if (parsed && parsed.length > 0) {
-      parsedTxns.push(parsed[0])
+      for (let i = 0; i < parsed.length; i++) {
+        parsedTxns.push(parsed[i])
+      }
     }
   }
 
